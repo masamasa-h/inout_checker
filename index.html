@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>インアウト判定＆計測システム</title>
+    <title>車いすInOut判定＆計測システム</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -26,21 +26,24 @@
         }
         .viewer img, .viewer video { max-width: 100%; max-height: 100%; object-fit: contain; }
 
-        .btn-group { display: flex; gap: 15px; justify-content: center; }
+        .btn-group { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
         button {
-            padding: 15px 35px; border: none; border-radius: 10px;
+            padding: 15px 30px; border: none; border-radius: 10px;
             font-size: 18px; font-weight: bold; cursor: pointer; transition: 0.2s;
         }
         .btn-in { background: #34a853; color: white; }
         .btn-out { background: #ea4335; color: white; }
         .btn-next { background: #1a73e8; color: white; }
+        .btn-back { background: #6c757d; color: white; } /* 戻るボタン用の色 */
+        
         button:hover { opacity: 0.9; transform: translateY(-2px); }
+        button:disabled { background: #ccc; cursor: not-allowed; transform: none; }
 
         #feedback-overlay {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.85); color: white;
             display: none; flex-direction: column; justify-content: center; align-items: center;
-            text-align: center; padding: 20px;
+            text-align: center; padding: 20px; z-index: 10;
         }
         .correct { color: #34a853; font-size: 60px; font-weight: bold; }
         .wrong { color: #ea4335; font-size: 60px; font-weight: bold; }
@@ -67,24 +70,16 @@
 <div class="container">
     <div id="screen-intro" class="screen active">
         <h1>🏃 判定基準の確認</h1>
-        <p style="text-align: center; margin-bottom: 15px; color: #555;">
-            計測を開始する前に、以下の基準を確認してください。<br>
-            こちらの基準に従ってコース内外の判定をしてください。
-        </p>
-
         <div class="info-box">
             <p style="font-size: 15px; line-height: 1.6;">
                 <strong>【重要】コース外（OUT）の判定条件：</strong><br>
                 車いすのホイールがコースのライン上にある場合、ラインから<strong>はみ出していたら</strong>OUTと判定してください。<br>
-                ライン上にあっても<strong>はみ出していない</strong>場合はINと判定してください（イラストを参照）。
+                ライン上にあっても<strong>はみ出していない</strong>場合はINと判定してください。
             </p>
         </div>
-
         <div class="viewer">
             <img src="images/rule.jpg" alt="判定基準イラスト">
         </div>
-
-        <p style="font-size: 15px; line-height: 1.6; text-align: center; margin-bottom: 15px;">まずは写真から判定基準を確認してもらいます！</p>
         <div class="btn-group">
             <button class="btn-next" onclick="startTraining()">判定基準の確認を開始</button>
         </div>
@@ -101,8 +96,9 @@
             </div>
         </div>
         <div class="btn-group" id="train-btns">
-            <button class="btn-in" onclick="answer(true)">コース内 (IN)</button>
-            <button class="btn-out" onclick="answer(false)">コース外 (OUT)</button>
+            <button class="btn-back" id="btn-back-id" onclick="prevQuestion()" style="display:none;">← 戻る</button>
+            <button class="btn-in" id="btn-in-id" onclick="answer(true)">コース内 (IN)</button>
+            <button class="btn-out" id="btn-out-id" onclick="answer(false)">コース外 (OUT)</button>
         </div>
     </div>
 
@@ -110,21 +106,17 @@
         <h1>🎬 動画計測の操作方法</h1>
         <div class="how-to-box">
             <p style="font-size: 16px; line-height: 1.6; color: #333;">
-                基準の確認お疲れ様でした！次は動画での計測です。<br><br>
                 <strong>操作方法：</strong><br>
                 ホイールが<strong>「コース外(OUT)」</strong>にはみ出している間だけ、<br>
-                キーボードの<span style="background:#1a73e8; color:white; padding:2px 8px; border-radius:4px; font-weight:bold;">SPACEキーを押し続けて</span>ください。<br><br>
-                <strong>開始のタイミング：</strong><br>
-                次の画面で「動画再生・計測開始」ボタンを押すと、<strong>あなたのタイミングで</strong>動画が始まり計測がスタートします。準備ができたら開始してください。
+                キーボードの<span style="background:#1a73e8; color:white; padding:2px 8px; border-radius:4px; font-weight:bold;">SPACEキーを押し続けて</span>ください。
             </p>
         </div>
-
         <div class="viewer" style="height: 250px;">
             <img src="images/rule.jpg" alt="判定基準イラスト（再掲）">
         </div>
-
         <div class="btn-group">
-            <button class="btn-next" onclick="startMainVideo()">理解しました。動画計測へ進む</button>
+            <button class="btn-back" onclick="show('screen-training')">トレーニングに戻る</button>
+            <button class="btn-next" onclick="startMainVideo()">動画計測へ進む</button>
         </div>
     </div>
 
@@ -162,7 +154,7 @@
 
 <script>
     const IMG_PATH = 'images/';
-    const FORMSPREE_URL = 'https://formspree.io/f/mqeezzqb---';
+    const FORMSPREE_URL = 'https://formspree.io/f/mqeezzqb';
 
     const trainData = [
             { img: '1.jpg', isInside: false, desc: '右ホイールが外側です' },
@@ -178,25 +170,49 @@
     ];
     const videoFiles = ['version1.mp4', 'version2.mp4', 'version3.mp4'];
 
-    let qIdx = 0; let score = 0; let vIdx = 0;
+    let qIdx = 0; 
+    let scoreHistory = []; // スコア履歴を管理
+    let vIdx = 0;
     let isTracking = false; let isKeyDown = false;
     let pressStart = 0; let vPressSum = 0;
     let segments = []; let videoStartTime = 0; let finalData = [];
+    let isFeedbackShowing = false;
 
     function show(id) {
         document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
         document.getElementById(id).classList.add('active');
     }
 
-    function startTraining() { show('screen-training'); loadQ(); }
+    function startTraining() { 
+        qIdx = 0; 
+        scoreHistory = []; 
+        show('screen-training'); 
+        loadQ(); 
+    }
+    
     function loadQ() {
+        isFeedbackShowing = false;
         document.getElementById('train-counter').textContent = `画像 ${qIdx + 1} / 10`;
         document.getElementById('train-img').src = IMG_PATH + trainData[qIdx].img;
         document.getElementById('feedback-overlay').style.display = 'none';
+        
+        // ボタン状態の更新
+        document.getElementById('btn-in-id').disabled = false;
+        document.getElementById('btn-out-id').disabled = false;
+        document.getElementById('train-btns').style.visibility = 'visible';
+        
+        // 1枚目以外なら「戻る」を表示
+        document.getElementById('btn-back-id').style.display = 'inline-block';
     }
+
     function answer(userIn) {
+        if(isFeedbackShowing) return;
+        isFeedbackShowing = true;
+
         const correct = (userIn === trainData[qIdx].isInside);
-        if(correct) score++;
+        scoreHistory[qIdx] = correct ? 1 : 0; // 今回の正誤を保存
+
+        document.getElementById('train-btns').style.visibility = 'hidden';
         const overlay = document.getElementById('feedback-overlay');
         const icon = document.getElementById('feedback-icon');
         icon.className = correct ? 'correct' : 'wrong';
@@ -206,7 +222,18 @@
     }
 
     function nextQuestion() {
-        qIdx++; if(qIdx < 10) loadQ(); else show('screen-how-to');
+        qIdx++; 
+        if(qIdx < 10) loadQ(); 
+        else show('screen-how-to');
+    }
+
+    function prevQuestion() {
+        if(qIdx > 0) {
+            qIdx--;
+            loadQ();
+        }else{
+            show('screen-intro');
+        }
     }
 
     function startMainVideo() {
@@ -223,20 +250,21 @@
         document.getElementById('startBtn').style.display = 'inline-block';
         vPressSum = 0; segments = [];
     }
+
     document.getElementById('startBtn').onclick = () => {
         isTracking = true; videoStartTime = Date.now();
         player.play(); document.getElementById('startBtn').style.display = 'none';
     };
 
-    // --- キーボードイベント（計測 & スキップ機能） ---
     let adminLongPressTimer;
     window.onkeydown = (e) => {
-        const introScreen = document.getElementById('screen-intro');
-        // 【秘密動作】説明画面での1秒長押しスキップ
-        if (e.code === 'Space' && introScreen.classList.contains('active')) {
+        const introActive = document.getElementById('screen-intro').classList.contains('active');
+        const trainingActive = document.getElementById('screen-training').classList.contains('active');
+
+        if (e.code === 'Space' && (introActive || trainingActive)) {
             if (!adminLongPressTimer) {
                 adminLongPressTimer = setTimeout(() => {
-                    score = 10;
+                    scoreHistory = Array(10).fill(1); // 満点扱い
                     show('screen-how-to');
                 }, 1000);
             }
@@ -265,16 +293,18 @@
     document.getElementById('videoNextBtn').onclick = () => {
         finalData.push({ name: videoFiles[vIdx], sum: vPressSum.toFixed(2), segs: [...segments] });
         vIdx++; if(vIdx < videoFiles.length) prepVideo(); else {
-            document.getElementById('final-score').textContent = score; show('screen-finish');
+            const totalScore = scoreHistory.reduce((a, b) => a + b, 0);
+            document.getElementById('final-score').textContent = totalScore; show('screen-finish');
         }
     };
 
     document.getElementById('submitBtn').onclick = async () => {
         const user = document.getElementById('userName').value || "Anonymous";
+        const totalScore = scoreHistory.reduce((a, b) => a + b, 0);
         let csv = "Name,TrainScore,Video,Segment#,Start,End,Duration\n";
         finalData.forEach(v => {
-            if(v.segs.length === 0) csv += `${user},${score},${v.name},0,N/A,N/A,0\n`;
-            v.segs.forEach((s, i) => { csv += `${user},${score},${v.name},${i+1},${s.start},${s.end},${s.dur}\n`; });
+            if(v.segs.length === 0) csv += `${user},${totalScore},${v.name},0,N/A,N/A,0\n`;
+            v.segs.forEach((s, i) => { csv += `${user},${totalScore},${v.name},${i+1},${s.start},${s.end},${s.dur}\n`; });
         });
         document.getElementById('submitBtn').disabled = true;
         document.getElementById('status-msg').textContent = "送信中...";
@@ -282,7 +312,7 @@
             const res = await fetch(FORMSPREE_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-                body: JSON.stringify({ name: user, trainScore: score + "/10", data: csv })
+                body: JSON.stringify({ name: user, trainScore: totalScore + "/10", data: csv })
             });
             if(res.ok) { document.getElementById('status-msg').style.color = "#34a853"; document.getElementById('status-msg').textContent = "✓ 送信完了！"; }
             else throw new Error();
@@ -296,5 +326,4 @@
 </script>
 
 </body>
-
 </html>
