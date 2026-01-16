@@ -34,7 +34,7 @@
         .btn-in { background: #34a853; color: white; }
         .btn-out { background: #ea4335; color: white; }
         .btn-next { background: #1a73e8; color: white; }
-        .btn-back { background: #6c757d; color: white; } /* 戻るボタン用の色 */
+        .btn-back { background: #6c757d; color: white; }
         
         button:hover { opacity: 0.9; transform: translateY(-2px); }
         button:disabled { background: #ccc; cursor: not-allowed; transform: none; }
@@ -127,6 +127,7 @@
         </div>
         <div class="btn-group">
             <button class="btn-next" id="startBtn">動画再生・計測開始</button>
+            <button class="btn-back" id="resetBtn" style="display:none;">最初からやり直す</button>
             <button class="btn-in" id="videoNextBtn" style="display:none;">次の動画へ</button>
         </div>
         <div class="status-bar">
@@ -145,7 +146,7 @@
         <div class="status-bar" style="text-align:center; margin-bottom:20px;">
             トレーニング正解数: <span id="final-score" style="color:#1a73e8;">0</span> / 10
         </div>
-        <p>判定者名を入力して送信してください！ご協力ありがとうございました！後日感謝の品差し上げます：</p>
+        <p>判定者名を入力して送信してください！ご協力ありがとうございました！</p>
         <input type="text" id="userName" placeholder="例：平林大" style="width:100%; padding:15px; margin:15px 0; border:2px solid #1a73e8; border-radius:10px; font-size: 16px;">
         <button class="btn-next" id="submitBtn" style="width:100%;">結果を送信</button>
         <p id="status-msg" style="text-align:center; margin-top:20px; font-weight:bold;"></p>
@@ -171,12 +172,17 @@
     const videoFiles = ['ver1.mp4', 'ver2.mp4', 'ver3.mp4'];
 
     let qIdx = 0; 
-    let scoreHistory = []; // スコア履歴を管理
+    let scoreHistory = []; 
     let vIdx = 0;
     let isTracking = false; let isKeyDown = false;
     let pressStart = 0; let vPressSum = 0;
     let segments = []; let videoStartTime = 0; let finalData = [];
     let isFeedbackShowing = false;
+
+    const player = document.getElementById('videoPlayer');
+    const startBtn = document.getElementById('startBtn');
+    const resetBtn = document.getElementById('resetBtn');
+    const videoNextBtn = document.getElementById('videoNextBtn');
 
     function show(id) {
         document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
@@ -196,12 +202,9 @@
         document.getElementById('train-img').src = IMG_PATH + trainData[qIdx].img;
         document.getElementById('feedback-overlay').style.display = 'none';
         
-        // ボタン状態の更新
         document.getElementById('btn-in-id').disabled = false;
         document.getElementById('btn-out-id').disabled = false;
         document.getElementById('train-btns').style.visibility = 'visible';
-        
-        // 1枚目以外なら「戻る」を表示
         document.getElementById('btn-back-id').style.display = 'inline-block';
     }
 
@@ -210,7 +213,7 @@
         isFeedbackShowing = true;
 
         const correct = (userIn === trainData[qIdx].isInside);
-        scoreHistory[qIdx] = correct ? 1 : 0; // 今回の正誤を保存
+        scoreHistory[qIdx] = correct ? 1 : 0;
 
         document.getElementById('train-btns').style.visibility = 'hidden';
         const overlay = document.getElementById('feedback-overlay');
@@ -241,19 +244,41 @@
         prepVideo();
     }
 
-    const player = document.getElementById('videoPlayer');
     function prepVideo() {
         player.src = videoFiles[vIdx];
+        player.load();
         document.getElementById('v-num').textContent = vIdx + 1;
         document.getElementById('totalTime').textContent = '0.00秒';
-        document.getElementById('videoNextBtn').style.display = 'none';
-        document.getElementById('startBtn').style.display = 'inline-block';
+        videoNextBtn.style.display = 'none';
+        startBtn.style.display = 'inline-block';
+        resetBtn.style.display = 'none';
         vPressSum = 0; segments = [];
+        isTracking = false; isKeyDown = false;
     }
 
-    document.getElementById('startBtn').onclick = () => {
+    startBtn.onclick = () => {
         isTracking = true; videoStartTime = Date.now();
-        player.play(); document.getElementById('startBtn').style.display = 'none';
+        player.play(); 
+        startBtn.style.display = 'none';
+        resetBtn.style.display = 'inline-block';
+    };
+
+    // やり直しボタンの処理
+    resetBtn.onclick = () => {
+        if(!confirm("現在の動画の計測を破棄して、最初からやり直しますか？")) return;
+        
+        player.pause();
+        player.currentTime = 0;
+        vPressSum = 0;
+        segments = [];
+        isTracking = false;
+        isKeyDown = false;
+        document.getElementById('totalTime').textContent = '0.00秒';
+        document.getElementById('keyIndicator').classList.remove('pressing');
+        
+        startBtn.style.display = 'inline-block';
+        resetBtn.style.display = 'none';
+        videoNextBtn.style.display = 'none';
     };
 
     let adminLongPressTimer;
@@ -264,7 +289,7 @@
         if (e.code === 'Space' && (introActive || trainingActive)) {
             if (!adminLongPressTimer) {
                 adminLongPressTimer = setTimeout(() => {
-                    scoreHistory = Array(10).fill(1); // 満点扱い
+                    scoreHistory = Array(10).fill(1);
                     show('screen-how-to');
                 }, 1000);
             }
@@ -289,10 +314,16 @@
         }
     };
 
-    player.onended = () => { isTracking = false; document.getElementById('videoNextBtn').style.display = 'inline-block'; };
-    document.getElementById('videoNextBtn').onclick = () => {
+    player.onended = () => { 
+        isTracking = false; 
+        videoNextBtn.style.display = 'inline-block'; 
+    };
+
+    videoNextBtn.onclick = () => {
         finalData.push({ name: videoFiles[vIdx], sum: vPressSum.toFixed(2), segs: [...segments] });
-        vIdx++; if(vIdx < videoFiles.length) prepVideo(); else {
+        vIdx++; 
+        if(vIdx < videoFiles.length) prepVideo(); 
+        else {
             const totalScore = scoreHistory.reduce((a, b) => a + b, 0);
             document.getElementById('final-score').textContent = totalScore; show('screen-finish');
         }
@@ -314,9 +345,16 @@
                 headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
                 body: JSON.stringify({ name: user, trainScore: totalScore + "/10", data: csv })
             });
-            if(res.ok) { document.getElementById('status-msg').style.color = "#34a853"; document.getElementById('status-msg').textContent = "✓ 送信完了！"; }
+            if(res.ok) { 
+                document.getElementById('status-msg').style.color = "#34a853"; 
+                document.getElementById('status-msg').textContent = "✓ 送信完了！"; 
+            }
             else throw new Error();
-        } catch(e) { document.getElementById('status-msg').style.color = "#ea4335"; document.getElementById('status-msg').textContent = "送信失敗"; document.getElementById('submitBtn').disabled = false; }
+        } catch(e) { 
+            document.getElementById('status-msg').style.color = "#ea4335"; 
+            document.getElementById('status-msg').textContent = "送信失敗"; 
+            document.getElementById('submitBtn').disabled = false; 
+        }
     };
 
     setInterval(() => { if(isTracking && isKeyDown) {
@@ -327,7 +365,3 @@
 
 </body>
 </html>
-
-
-
-
